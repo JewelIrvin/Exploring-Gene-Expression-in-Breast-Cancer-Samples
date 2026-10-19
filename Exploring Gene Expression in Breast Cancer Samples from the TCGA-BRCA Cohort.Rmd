@@ -1,0 +1,333 @@
+---
+title: "Exploring Gene Expression in Breast Cancer Samples from the TCGA-BRCA Cohort"
+author: "Jewel Irvin"
+date: "2026-10-03"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(ComplexHeatmap)
+library(circlize)
+library(gridExtra)
+
+#install.packages("pheatmap") 
+```
+
+
+## 1 Data Preparation 
+
+```{r}
+# Set the working directory to the Downloads folder
+setwd("~/Downloads")
+
+# Check the working directory
+getwd()
+
+# Check the files available in the Downloads folder
+#list.files()
+
+# Load the data
+counts <- read.csv("counts (1).csv", check.names = FALSE)
+
+names(counts)[1] <- "gene_id"
+meta_data <- read.csv("meta_data (1).csv", check.names = FALSE)
+
+# Inspect the data
+dim(counts)
+dim(meta_data)
+
+names(counts)[1:5]
+names(meta_data)
+
+#head(counts[, 1:5])
+#head(meta_data)
+
+```
+# 2)Gene Selection and Summary Statistics
+
+```{r}
+## Inspecting the Data
+
+## Selected Genes: ESR1 and ERBB2 
+
+#ESR1 was selected as the primary gene for this analysis because it is an important gene involved in estrogen receptor biology and breast cancer.
+
+# Give the first column a consistent name
+names(counts)[1] <- "gene_id"
+
+# Find ESR1 by its Ensembl ID
+esr1_row <- counts[
+  counts$gene_id == "ENSG00000091831.24",
+]
+
+# Check the result
+#nrow(esr1_row)
+
+#esr1_counts <- as.numeric(esr1_row[1, -1])
+
+# Check the first few values
+#head(esr1_counts)
+
+# Identify the ESR1 and ERBB2 rows
+esr1_row <- counts[
+  counts$gene_id == "ENSG00000091831.24", ]
+
+erbb2_row <- counts[
+  counts$gene_id == "ENSG00000141736.14", ]
+
+# Extract expression counts across all samples
+esr1_counts <- as.numeric(esr1_row[1, -1])
+erbb2_counts <- as.numeric(erbb2_row[1, -1])
+
+# Calculate summary statistics for each gene
+summary_stats <- data.frame(
+  Gene = c("ESR1", "ERBB2"),
+  Mean = c(mean(esr1_counts, na.rm = TRUE),
+           mean(erbb2_counts, na.rm = TRUE)),
+  Median = c(median(esr1_counts, na.rm = TRUE),
+             median(erbb2_counts, na.rm = TRUE)),
+  SD = c(sd(esr1_counts, na.rm = TRUE),
+         sd(erbb2_counts, na.rm = TRUE)),
+  Minimum = c(min(esr1_counts, na.rm = TRUE),
+              min(erbb2_counts, na.rm = TRUE)),
+  Maximum = c(max(esr1_counts, na.rm = TRUE),
+              max(erbb2_counts, na.rm = TRUE))
+)
+
+# Round values for presentation
+summary_stats[-1] <- lapply(
+  summary_stats[-1],
+  round,
+  digits = 2
+)
+
+# Display the table
+knitr::kable(
+  summary_stats,
+  caption = "Summary Statistics for ESR1 and ERBB2 Gene Expression"
+)
+
+table_grob <- tableGrob(
+  summary_stats,
+  rows = NULL,
+  theme = ttheme_minimal(base_size = 14)
+)
+
+png(
+  filename = "~/Downloads/summary_statistics.png",
+  width = 1800,
+  height = 700,
+  res = 200
+)
+
+grid.draw(table_grob)
+dev.off()
+
+
+```
+# Visualizations 
+#A) ESR1 Expression Histogram
+
+```{r}
+# Create a data frame for ESR1 expression
+esr1_df <- data.frame(ESR1 = esr1_counts)
+
+# Create the updated histogram
+ggplot(esr1_df, aes(x = ESR1)) +
+  geom_histogram(bins = 30, color = "black", fill = "steelblue") +
+  labs(
+    title = "Distribution of ESR1 Gene Expression",
+    x = "ESR1 Expression Counts",
+    y = "Number of Samples"
+  ) +
+  theme_minimal()
+
+ggsave("esr1_histogram.png",
+       width = 8, height = 5, dpi = 300)
+```
+
+
+#B) Scatter plot — ESR1 vs. ERBB2
+
+```{r}
+# Check the actual name of the first column
+names(counts)[1]
+
+# Look at the first few gene IDs
+head(counts[[1]])
+
+# Extract the ERBB2 gene row
+erbb2_row <- counts[
+  counts[[1]] == "ENSG00000141736.14",
+]
+
+# Confirm that one row was found
+nrow(erbb2_row)
+
+# Extract expression counts across samples
+erbb2_counts <- as.numeric(erbb2_row[1, -1])
+
+# View the first six counts
+head(erbb2_counts)
+
+## B) ESR1 and ERBB2 Scatter Plot
+
+# Create a data frame for the scatter plot
+esr1_erbb2_df <- data.frame(
+  ESR1 = esr1_counts,
+  ERBB2 = erbb2_counts
+)
+
+# Plot ESR1 versus ERBB2 expression
+ggplot(esr1_erbb2_df, aes(x = ESR1, y = ERBB2)) +
+  geom_point(color = "hotpink3",alpha = 0.6) +
+  labs(
+    title = "ESR1 and ERBB2 Gene Expression",
+    x = "ESR1 Expression Counts",
+    y = "ERBB2 Expression Counts"
+  ) +
+  theme_minimal()
+
+ggsave("esr1_erbb2_scatter.png",
+       width = 8, height = 5, dpi = 300)
+```
+
+#C) Box Plot
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Extract ESR1 gene expression
+esr1_row <- counts[counts$gene_id == "ENSG00000091831.24", ]
+
+esr1_counts <- as.numeric(esr1_row[1, -1])
+
+# Combine expression data with subtype information
+esr1_subtype_df <- data.frame(
+  ESR1 = esr1_counts,
+  PAM50 = meta_data$paper_BRCA_Subtype_PAM50
+)
+
+esr1_subtype_df <- esr1_subtype_df %>%
+  filter(!is.na(PAM50))
+
+# Create box plot
+ggplot(esr1_subtype_df, aes(x = PAM50, y = ESR1, fill = PAM50)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = NA) +
+  geom_jitter(aes(color = PAM50), width = 0.2, alpha = 0.4, size = 1.5) +
+  scale_fill_manual(values = c(
+    "LumA" = "#E78AC3",
+    "LumB" = "#8DA0CB",
+    "Basal" = "#FC8D62",
+    "Her2" = "#66C2A5",
+    "Normal" = "#FFD92F"
+  )) +
+  scale_color_manual(values = c(
+    "LumA" = "#C44E91",
+    "LumB" = "#536DA6",
+    "Basal" = "#D95F02",
+    "Her2" = "#238B72",
+    "Normal" = "#B39B00"
+  )) +
+  labs(
+    title = "ESR1 Expression Across PAM50 Breast Cancer Subtypes",
+    x = "PAM50 Molecular Subtype",
+    y = "ESR1 Expression Counts"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+ggsave("esr1_pam50_boxplot.png",
+       width = 8, height = 5, dpi = 300)
+
+```
+
+
+#4)Heatmap Analysis
+
+```{r}
+
+# Load the heatmap package
+library(pheatmap)
+
+# Create the gene expression matrix from the count data
+gene_matrix <- as.matrix(counts[, -1])
+rownames(gene_matrix) <- counts$gene_id
+
+# Select the 10 most variable genes
+gene_variances <- apply(gene_matrix, 1, var, na.rm = TRUE)
+top_genes <- names(sort(gene_variances, decreasing = TRUE))[1:10]
+
+# Get the sample IDs from the gene expression matrix
+sample_ids <- colnames(gene_matrix)
+
+# Match sample IDs to metadata barcodes
+metadata_rows <- match(sample_ids, meta_data$barcode)
+
+# Keep samples with matching metadata and known PAM50 subtypes
+keep <- !is.na(metadata_rows)
+
+keep[keep] <- !is.na(
+  meta_data$paper_BRCA_Subtype_PAM50[metadata_rows[keep]]
+)
+
+# Select the top genes and samples with known subtypes
+heatmap_matrix <- log2(
+  gene_matrix[top_genes, keep, drop = FALSE] + 1
+)
+
+# Create the PAM50 annotation data frame
+annotation_col <- data.frame(
+  PAM50 = meta_data$paper_BRCA_Subtype_PAM50[metadata_rows[keep]]
+)
+
+# Align annotation rows with the heatmap columns
+rownames(annotation_col) <- colnames(heatmap_matrix)
+
+# Draw the heatmap
+pheatmap(
+  heatmap_matrix,
+  annotation_col = annotation_col,
+  show_colnames = FALSE,
+  main = "Gene Expression Across PAM50 Subtypes"
+)
+
+ggsave("heatmap.png",
+       width = 8, height = 5, dpi = 300)
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+#5) Bar Chart
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+pam50_counts <- meta_data %>%
+  filter(!is.na(paper_BRCA_Subtype_PAM50)) %>%
+  count(paper_BRCA_Subtype_PAM50)
+
+ggplot(
+  pam50_counts,
+  aes(x = paper_BRCA_Subtype_PAM50,
+      y = n,
+      fill = paper_BRCA_Subtype_PAM50)
+) +
+  geom_col() +
+  labs(
+    title = "Distribution of PAM50 Molecular Subtypes",
+    x = "PAM50 Molecular Subtype",
+    y = "Number of Samples"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+ggsave("pam50_subtype_barplot.png",
+       width = 8, height = 5, dpi = 300)
+```
