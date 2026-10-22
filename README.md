@@ -32,7 +32,6 @@ The analysis uses two course-provided files:
 
 The analysis identifies ESR1 and ERBB2 using their Ensembl gene identifiers and connects expression measurements with sample metadata for subtype comparisons.
 
-**Data note:** The input files were provided for the course project. Confirm permission before redistributing them publicly. If redistribution is not permitted, keep the data files out of the public GitHub repository and explain how authorized users can obtain them.
 
 ## Methods
 
