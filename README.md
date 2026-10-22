@@ -1,7 +1,9 @@
 # Exploring Gene Expression in Breast Cancer Samples from the TCGA-BRCA Cohort
 
 **Author:** Jewel Irvin  
+
 **Project:** Data Science Project with R
+
 **Date:** October 18, 2026
 
 ## Overview
